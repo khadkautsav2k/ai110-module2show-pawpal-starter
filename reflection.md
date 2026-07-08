@@ -1,6 +1,7 @@
 # PawPal+ Project Reflection
 
 ## 1. System Design
+ Three core actions: add a pet, see today's tasks, food to feed
 
 **a. Initial design**
 

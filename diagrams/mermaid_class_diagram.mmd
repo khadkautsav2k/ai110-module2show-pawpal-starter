@@ -1,0 +1,45 @@
+classDiagram
+    class AddPet {
+        -String id
+        -String name
+        -String species
+        -int age
+        +addPet()
+        +removePet()
+        +updatePet()
+        +getProfile()
+    }
+
+    class PetFood {
+        -String id
+        -String brand
+        -String type
+        -int quantity
+        +addFood()
+        +consume(amount)
+        +scheduleRefill()
+        +getNutritionInfo()
+    }
+
+    class TodaysTasks {
+        -List~Task~ tasks
+        +addTask(task)
+        +completeTask(taskId)
+        +getPendingTasks()
+        +getAllTasks()
+    }
+
+    class TimelyCare {
+        -String id
+        -DateTime scheduledAt
+        -String taskId
+        +scheduleCare(taskId, datetime)
+        +triggerReminder()
+        +cancel()
+    }
+
+    %% Relationships
+    AddPet "1" o-- "*" PetFood : has
+    AddPet "1" o-- "*" TodaysTasks : owns
+    TodaysTasks "1" --> "*" TimelyCare : schedules
+    TimelyCare ..> PetFood : mayUse
