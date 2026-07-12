@@ -10,7 +10,7 @@ def _id() -> str:
 	return str(uuid.uuid4())
 
 
-@dataclass
+@dataclass(eq=False)
 class Pet:
 	id: str = field(default_factory=_id)
 	name: str = ""
