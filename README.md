@@ -72,15 +72,53 @@ Sample test output:
 
 ## 📐 Smarter Scheduling
 
-> Fill in once you've implemented scheduling logic.
+PawPal+ implements four core scheduling algorithms to make pet care planning intelligent and conflict-free:
 
-| Feature | Method(s) | Notes |
-|---------|-----------|-------|
-| Task sorting | | e.g., by priority, duration |
-| Filtering | | e.g., skip tasks if time runs out |
-| Conflict handling | | e.g., overlapping time slots |
-| Recurring tasks | | e.g., daily vs. weekly |
+| Feature | Method | Algorithm | Complexity |
+|---------|--------|-----------|-----------|
+| **Sort by Time** | `Pet.get_tasks_sorted_by_time()`, `Scheduler.get_todays_schedule()` | Chronological sort via `sorted(tasks, key=scheduled_at)` | O(n log n) |
+| **Sort by Priority** | `Pet.get_tasks_sorted_by_priority()`, `Scheduler.get_todays_schedule_by_priority()` | Multi-key sort: priority rank then time | O(n log n) |
+| **Filter by Status** | `Pet.get_tasks_by_status(completed=bool)` | Single-pass predicate filter | O(n) |
+| **Filter High Priority** | `Pet.get_high_priority_tasks()`, `Owner.get_all_high_priority_tasks()` | Predicate filter: `priority == "high"` | O(n) |
+| **Filter Recurring** | `Pet.get_recurring_tasks()` | Predicate filter: `frequency` field set | O(n) |
+| **Conflict Detection** | `Scheduler.detect_conflicts_for_pet()` | Interval overlap: `task1.start < task2.end AND task2.start < task1.end` | O(n²) |
+| **Get All Conflicts** | `Scheduler.get_all_conflicts()` | Apply conflict detection per pet | O(m·n²) |
+| **Recurring Tasks** | `Task.get_next_occurrence()` | Generate next instance: `scheduled_at + timedelta(days=1 or 7)` | O(1) |
 
+### Implementation Examples
+
+**Sorting Example:**
+```python
+# Get today's tasks, sorted by priority (urgent first), then by time
+scheduler = Scheduler(owner=my_owner)
+today_tasks = scheduler.get_todays_schedule_by_priority()
+# Returns: [high-priority tasks first, then medium, then low; within each group: sorted by time]
+```
+
+**Conflict Detection Example:**
+```python
+# Check if Mochi (cat) has any overlapping tasks
+conflicts = scheduler.detect_conflicts_for_pet(mochi)
+# Returns: [(feeding_task, walk_task), ...] if any tasks overlap
+# Example: Feeding 2:00pm-2:15pm conflicts with Medication 2:10pm-2:20pm
+```
+
+**Recurring Task Example:**
+```python
+# Daily feeding task marks complete → next occurrence auto-generates
+daily_feeding = Task(title="Feed Mochi", frequency="daily", scheduled_at=datetime(2026, 7, 11, 8, 0))
+next_feeding = daily_feeding.get_next_occurrence()
+# Returns: New Task with scheduled_at=datetime(2026, 7, 12, 8, 0) and parent_recurring_id tracking
+```
+
+### Tradeoffs
+
+**Exact Interval Overlap vs. Buffer-Aware Scheduling:**
+- Current: Exact overlap detection (catches conflicts down to 1 minute)
+- Not Implemented: Buffer-aware warnings (e.g., flag if tasks within 5 min)
+- Rationale: Pet care tasks typically space far apart; exact detection is simpler, transparent, and more Pythonic
+
+---
 ## 📸 Demo Walkthrough
 
 Describe your app in numbered steps so a reader can follow along without watching a video:
