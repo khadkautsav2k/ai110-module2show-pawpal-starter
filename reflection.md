@@ -99,6 +99,24 @@ Timestamps: Task.completed_at auto-set when complete() is called.
   - Measured readability by asking: "Can a new team member understand this in < 30 seconds?"
   - Assessed resource usage: O(n²) * ~20 tasks per day = 400 comparisons—negligible on modern hardware
 
+**c. AI Strategy (Lead Architect Reflection)**
+
+- **Which AI coding assistant features were most effective for building your scheduler?**
+  - **Chat-driven debugging on test output**: Pasting the failing `pytest` output and asking "is the bug in my test code or my `pawpal_system.py` logic?" was the single most valuable feature. It correctly separated a *test-expectation* bug (I had asserted 3 conflicts for three tasks where two were merely back-to-back at 11:00, not overlapping) from a *real source* bug (`Pet` was an unhashable dataclass, so `get_all_conflicts()` crashed when using it as a dict key).
+  - **Boilerplate generation**: Scaffolding dataclasses and pytest skeletons let me spend my attention on the interval-overlap math instead of typing structure.
+  - **"Explain/critique this algorithm" reviews**: Asking the assistant to critique the conflict-detection loop forced me to justify the half-open interval check `start < other_end AND other_start < end`.
+  - **UI wiring**: Connecting Streamlit `session_state` to backend objects and surfacing `get_all_conflicts()` as `st.warning` banners.
+
+- **Give one example of an AI suggestion you rejected or modified to keep your system design clean.**
+  - When fixing the "`Pet` unhashable" bug, the quick suggestion was to make `Pet` hashable with `unsafe_hash=True` or to key the results dict by `pet.name`. I rejected both: `unsafe_hash=True` would hash on the mutable `tasks`/`foods` lists and crash at runtime, and keying by `name` breaks when two pets share a name. I chose `@dataclass(eq=False)` for **identity-based** hashing — it keeps `Pet` mutable (needed for `add_task`) while treating each pet as a unique entity by its UUID. That kept the model semantically clean instead of patching a symptom.
+  - (Also, per §3b, I kept the transparent O(n²) conflict loop over the AI's O(n log n) sorted-windowing suggestion because n is tiny and readability wins.)
+
+- **How did using separate chat sessions for different phases help you stay organized?**
+  - Each phase (design → implementation → UI → algorithms → testing) had its own session with a single deliverable, so context stayed focused and the assistant didn't drag stale assumptions from an earlier phase into a later one. It also created a clean paper trail — the per-phase docs (e.g., `PHASE4_SMART_ANALYSIS.md`) map one-to-one to a session, which made it easy to resume work and to review my own reasoning later.
+
+- **Summarize what you learned about being the "lead architect" when collaborating with powerful AI tools.**
+  - The AI is a fast, tireless implementer, but **correctness, taste, and system coherence are the human's job**. The clearest lesson came from the test suite: 43 of 45 tests passed, yet one *green-looking* assumption was wrong and one real bug hid behind a `TypeError`. A powerful assistant will confidently produce plausible code and plausible tests — my role was to interrogate both, decide the tradeoffs (identity vs value equality, O(n²) vs O(n log n), exact vs buffered conflicts), and reject over-engineering. I direct the *what* and the *why*; the AI accelerates the *how*.
+
 ---
 
 ## 4. Testing and Verification
@@ -106,12 +124,27 @@ Timestamps: Task.completed_at auto-set when complete() is called.
 **a. What you tested**
 
 - What behaviors did you test?
+  - **45 tests across 8 test classes** in `tests/test_pawpal.py`:
+    - *Task lifecycle*: completion changes status, sets `completed_at` timestamp, and is safe to call repeatedly.
+    - *Composition*: adding tasks to a pet, adding pets to an owner, and cross-pet task aggregation (`Owner.get_all_tasks` / pending).
+    - *PetFood*: `consume` never goes negative, `refill`, and `needs_refill` threshold logic.
+    - *Sorting correctness*: chronological (`get_tasks_sorted_by_time`), unscheduled tasks sorted to the end, ties, single/empty lists, and priority ordering (`high → medium → low`, then time, unknown priority treated as lowest) at both pet and owner level.
+    - *Recurrence*: daily/weekly `get_next_occurrence`, `None` returned for non-recurring / unscheduled / unknown-frequency tasks, unique IDs, and `parent_recurring_id` lineage tracking across generations.
+    - *Conflict detection*: overlapping tasks flagged, **back-to-back tasks correctly NOT flagged**, three-task pairwise counting, tasks with no duration or no schedule filtered out, and multi-pet `get_all_conflicts`.
+    - *TimelyCare*: reminder trigger, cancel, overdue detection.
 - Why were these tests important?
+  - The scheduler's value is entirely in its *edge behavior* — the difference between "10:00–11:00 and 11:00–11:30 overlap" (they don't) and "10:00–11:00 and 10:30–11:30 overlap" (they do) is exactly what an owner relies on. Testing boundaries (adjacency, empty inputs, unscheduled/zero-duration tasks) is where the real bugs live, not the happy path.
 
 **b. Confidence**
 
 - How confident are you that your scheduler works correctly?
+  - **High for the core logic.** All 45 tests pass, and the suite deliberately covers boundaries, not just happy paths. Confidence was *earned*, not assumed: the debugging pass surfaced two genuine issues — an incorrect test expectation (adjacent tasks aren't conflicts) and a real crash (`Pet` was unhashable, breaking `get_all_conflicts`). Both are now fixed and regression-covered.
 - What edge cases would you test next if you had more time?
+  - Tasks that **span midnight** or cross date boundaries (does "today's schedule" still behave?).
+  - **Timezone-aware** and DST-transition `datetime` values (current logic assumes naive local time).
+  - Conflict detection **at scale** (100+ tasks) to confirm the O(n²) loop stays acceptable.
+  - Interaction between **recurring generation and conflicts** — does an auto-generated next occurrence ever collide with an existing task?
+  - Three-or-more mutually overlapping tasks and how the *pairwise* conflict list should be presented to the owner without overwhelming them.
 
 ---
 
@@ -120,11 +153,17 @@ Timestamps: Task.completed_at auto-set when complete() is called.
 **a. What went well**
 
 - What part of this project are you most satisfied with?
+  - The **conflict detection feature end-to-end**: a small, correct piece of interval math in the backend (`detect_conflicts_for_pet` / `get_all_conflicts`) that surfaces in the UI as a clear, actionable amber warning telling the owner *which two tasks* collide, the *exact overlap window*, and *what to do about it*. It's the moment the app stops being a list and starts being an assistant. I'm also satisfied that the test suite caught real problems rather than just rubber-stamping the code.
 
 **b. What you would improve**
 
 - If you had another iteration, what would you improve or redesign?
+  - **Suggest a fix, not just flag the problem**: when a conflict is detected, propose the nearest free slot to reschedule one task into, instead of leaving the owner to figure it out.
+  - **Buffer-aware scheduling** (the tradeoff deferred in §2b): an opt-in `buffer_minutes` so tasks that are uncomfortably tight, not just literally overlapping, get a gentle heads-up.
+  - **Timezone-correct datetimes** throughout, so the app is safe for travel/DST.
+  - **Persistence**: right now state lives only in Streamlit `session_state` and evaporates on restart — a real product needs to save owners/pets/tasks.
 
 **c. Key takeaway**
 
 - What is one important thing you learned about designing systems or working with AI on this project?
+  - **A passing test suite is only as trustworthy as the assumptions encoded in it.** Two of my tests looked authoritative but one asserted the wrong thing entirely (adjacent tasks conflicting). Working with a powerful AI amplified this lesson: the assistant will happily generate confident code *and* confident tests, so my real job as the lead architect was to keep asking "is this actually right, and is it the design I want?" — owning correctness and coherence while letting the AI accelerate the mechanical work.

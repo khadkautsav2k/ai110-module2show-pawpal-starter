@@ -1,0 +1,96 @@
+classDiagram
+    %% ── Entity layer ─────────────────────────────────────────────
+    class Owner {
+        +String id
+        +String name
+        +List~Pet~ pets
+        +add_pet(pet)
+        +get_all_tasks() List~Task~
+        +get_all_pending_tasks() List~Task~
+        +get_all_overdue_tasks() List~Task~
+        +get_tasks_for_pet(pet) List~Task~
+        +get_all_tasks_sorted_by_time() List~Task~
+        +get_all_tasks_sorted_by_priority() List~Task~
+        +get_all_high_priority_tasks() List~Task~
+        +get_all_pending_by_priority() List~Task~
+        +get_recurring_tasks() List~Task~
+    }
+
+    class Pet {
+        +String id
+        +String name
+        +String species
+        +int age
+        +List~PetFood~ foods
+        +List~Task~ tasks
+        +profile() dict
+        +add_food(food)
+        +add_task(task)
+        +get_pending_tasks() List~Task~
+        +get_low_stock_foods(threshold) List~PetFood~
+        +get_tasks_sorted_by_time() List~Task~
+        +get_tasks_sorted_by_priority() List~Task~
+        +get_tasks_by_status(completed) List~Task~
+        +get_high_priority_tasks() List~Task~
+        +get_recurring_tasks() List~Task~
+    }
+
+    class Task {
+        +String id
+        +String title
+        +String description
+        +bool completed
+        +DateTime scheduled_at
+        +DateTime completed_at
+        +String priority
+        +int duration_minutes
+        +String frequency
+        +String parent_recurring_id
+        +complete()
+        +get_next_occurrence() Task
+        +is_overdue() bool
+    }
+
+    class PetFood {
+        +String id
+        +String brand
+        +String type
+        +int quantity
+        +consume(amount)
+        +refill(amount)
+        +needs_refill(threshold) bool
+    }
+
+    %% ── Logic layer ──────────────────────────────────────────────
+    class Scheduler {
+        +Owner owner
+        +get_todays_schedule() List~Task~
+        +get_todays_schedule_by_priority() List~Task~
+        +get_pending_tasks() List~Task~
+        +get_tasks_to_execute() List~Task~
+        +detect_conflicts_for_pet(pet) List~TaskPair~
+        +get_all_conflicts() Map~Pet_TaskPairs~
+    }
+
+    class TimelyCare {
+        +String id
+        +String task_id
+        +String pet_id
+        +DateTime scheduled_at
+        +bool reminder_sent
+        +Task task
+        +Pet pet
+        +trigger_reminder()
+        +cancel()
+        +is_overdue() bool
+    }
+
+    %% ── Relationships ────────────────────────────────────────────
+    Owner "1" o-- "*" Pet : manages
+    Pet "1" o-- "*" PetFood : stocks
+    Pet "1" o-- "*" Task : schedules
+    Scheduler "1" --> "1" Owner : plans for
+    Scheduler ..> Task : sorts / detects conflicts
+    Task ..> Task : get_next_occurrence (recurring)
+    TimelyCare ..> Task : reminds about
+    TimelyCare ..> Pet : notifies owner of
