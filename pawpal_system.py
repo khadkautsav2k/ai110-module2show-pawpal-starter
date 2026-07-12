@@ -1,7 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import List, Optional
+from datetime import datetime, timedelta
+from typing import List, Optional, Tuple
 import uuid
 
 
@@ -39,6 +39,28 @@ class Pet:
 		"""Return foods with quantity at or below the threshold."""
 		return [f for f in self.foods if f.quantity <= threshold]
 
+	def get_tasks_sorted_by_time(self) -> List["Task"]:
+		"""Return pet's tasks sorted by scheduled_at time (earliest first)."""
+		return sorted(self.tasks, key=lambda t: t.scheduled_at or datetime.max)
+
+	def get_tasks_sorted_by_priority(self) -> List["Task"]:
+		"""Return pet's tasks sorted by priority (high→medium→low) then by time."""
+		priority_order = {"high": 0, "medium": 1, "low": 2}
+		return sorted(self.tasks, 
+			key=lambda t: (priority_order.get(t.priority, 3), t.scheduled_at or datetime.max))
+
+	def get_tasks_by_status(self, completed: bool = False) -> List["Task"]:
+		"""Return tasks filtered by completion status."""
+		return [t for t in self.tasks if t.completed == completed]
+
+	def get_high_priority_tasks(self) -> List["Task"]:
+		"""Return all high-priority tasks for this pet."""
+		return [t for t in self.tasks if t.priority == "high"]
+
+	def get_recurring_tasks(self) -> List["Task"]:
+		"""Return all recurring tasks (daily/weekly)."""
+		return [t for t in self.tasks if t.frequency]
+
 
 @dataclass
 class PetFood:
@@ -68,11 +90,43 @@ class Task:
 	completed: bool = False
 	scheduled_at: Optional[datetime] = None
 	completed_at: Optional[datetime] = None
+	priority: str = "medium"  # "high", "medium", "low"
+	duration_minutes: int = 15  # Estimated duration
+	frequency: Optional[str] = None  # "daily", "weekly", or None
+	parent_recurring_id: Optional[str] = None  # ID of recurring task parent
 
 	def complete(self) -> None:
 		"""Mark task as completed and record the completion timestamp."""
 		self.completed = True
 		self.completed_at = datetime.now()
+
+	def get_next_occurrence(self) -> Optional["Task"]:
+		"""
+		Generate the next occurrence of a recurring task.
+		Returns None if task is not recurring or has no scheduled time.
+		"""
+		if not self.frequency or not self.scheduled_at:
+			return None
+		
+		# Calculate next scheduled time based on frequency
+		if self.frequency == "daily":
+			next_time = self.scheduled_at + timedelta(days=1)
+		elif self.frequency == "weekly":
+			next_time = self.scheduled_at + timedelta(days=7)
+		else:
+			return None
+		
+		# Create new task instance with same properties but new ID
+		next_task = Task(
+			title=self.title,
+			description=self.description,
+			scheduled_at=next_time,
+			priority=self.priority,
+			duration_minutes=self.duration_minutes,
+			frequency=self.frequency,
+			parent_recurring_id=self.parent_recurring_id or self.id
+		)
+		return next_task
 
 	def is_overdue(self) -> bool:
 		"""Return True if task is incomplete and past its scheduled time."""
@@ -131,6 +185,54 @@ class Owner:
 		"""Retrieve tasks that are past their scheduled time."""
 		return [t for t in self.get_all_tasks() if t.is_overdue()]
 
+	def get_tasks_for_pet(self, pet: "Pet") -> List["Task"]:
+		"""Get all tasks for a specific pet."""
+		return pet.tasks
+
+	def get_all_tasks_sorted_by_time(self) -> List["Task"]:
+		"""Get all tasks across all pets, sorted by scheduled time."""
+		all_tasks = self.get_all_tasks()
+		return sorted(all_tasks, key=lambda t: t.scheduled_at or datetime.max)
+
+	def get_all_tasks_sorted_by_priority(self) -> List["Task"]:
+		"""Get all tasks across all pets, sorted by priority then time."""
+		all_tasks = self.get_all_tasks()
+		priority_order = {"high": 0, "medium": 1, "low": 2}
+		return sorted(all_tasks,
+			key=lambda t: (priority_order.get(t.priority, 3), t.scheduled_at or datetime.max))
+
+	def get_high_priority_tasks(self) -> List["Task"]:
+		"""Get all high-priority tasks across all pets."""
+		return [t for t in self.get_all_tasks() if t.priority == "high"]
+
+	def get_recurring_tasks(self) -> List["Task"]:
+		"""Get all recurring tasks (daily/weekly) across all pets."""
+		return [t for t in self.get_all_tasks() if t.frequency]
+
+	def get_all_tasks_sorted_by_time(self) -> List["Task"]:
+		"""Return all tasks across all pets sorted by time (earliest first)."""
+		return sorted(self.get_all_tasks(), key=lambda t: t.scheduled_at or datetime.max)
+
+	def get_all_tasks_sorted_by_priority(self) -> List["Task"]:
+		"""Return all tasks across all pets sorted by priority then time."""
+		priority_order = {"high": 0, "medium": 1, "low": 2}
+		return sorted(self.get_all_tasks(), 
+			key=lambda t: (priority_order.get(t.priority, 3), t.scheduled_at or datetime.max))
+
+	def get_tasks_for_pet(self, pet: "Pet") -> List["Task"]:
+		"""Get all tasks for a specific pet."""
+		return pet.tasks
+
+	def get_all_high_priority_tasks(self) -> List["Task"]:
+		"""Return only high-priority tasks across all pets."""
+		return [t for t in self.get_all_tasks() if t.priority == "high"]
+
+	def get_all_pending_by_priority(self) -> List["Task"]:
+		"""Return all pending tasks sorted by priority."""
+		pending = self.get_all_pending_tasks()
+		priority_order = {"high": 0, "medium": 1, "low": 2}
+		return sorted(pending, key=lambda t: priority_order.get(t.priority, 3))
+
 
 @dataclass
 class Scheduler:
@@ -152,6 +254,52 @@ class Scheduler:
 			if t.scheduled_at and t.scheduled_at.date() == today
 		]
 		return sorted(tasks, key=lambda t: t.scheduled_at)
+
+	def get_todays_schedule_by_priority(self) -> List["Task"]:
+		"""Return today's tasks sorted by priority then time."""
+		today = datetime.now().date()
+		tasks = [
+			t for t in self.owner.get_all_tasks()
+			if t.scheduled_at and t.scheduled_at.date() == today
+		]
+		priority_order = {"high": 0, "medium": 1, "low": 2}
+		return sorted(tasks,
+			key=lambda t: (priority_order.get(t.priority, 3), t.scheduled_at))
+
+	def detect_conflicts_for_pet(self, pet: "Pet") -> List[tuple['Task', 'Task']]:
+		"""
+		Detect overlapping tasks for a specific pet using interval overlap detection.
+		
+		Algorithm: O(n²) brute force comparison with early filtering.
+		- Filter tasks with scheduled_at and duration_minutes
+		- Compare each pair for interval overlap: task1.start < task2.end AND task2.start < task1.end
+		- Return list of conflicting task pairs
+		"""
+		conflicts = []
+		# Pre-filter and pre-calculate end times for efficiency
+		tasks_with_times = [
+			(t, t.scheduled_at + timedelta(minutes=t.duration_minutes))
+			for t in pet.tasks 
+			if t.scheduled_at and t.duration_minutes
+		]
+		
+		# Check each pair for overlap - using tuple unpacking for clarity
+		for i, (task1, end1) in enumerate(tasks_with_times):
+			for task2, end2 in tasks_with_times[i+1:]:
+				# Interval overlap: task1_start < task2_end AND task2_start < task1_end
+				if task1.scheduled_at < end2 and task2.scheduled_at < end1:
+					conflicts.append((task1, task2))
+		
+		return conflicts
+
+	def get_all_conflicts(self) -> dict['Pet', List[tuple['Task', 'Task']]]:
+		"""Detect conflicts for all pets across the owner's collection."""
+		conflicts_by_pet = {}
+		for pet in self.owner.pets:
+			conflicts = self.detect_conflicts_for_pet(pet)
+			if conflicts:
+				conflicts_by_pet[pet] = conflicts
+		return conflicts_by_pet
 
 
 __all__ = ["Pet", "PetFood", "Task", "TimelyCare", "Owner", "Scheduler"]

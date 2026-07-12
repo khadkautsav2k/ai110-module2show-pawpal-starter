@@ -19,29 +19,42 @@ def main():
 	owner.add_pet(pet2)
 	print(f"Added pets: {pet1.name} ({pet1.species}) and {pet2.name} ({pet2.species})\n")
 
-	# Create tasks with different times for Mochi
+	# Create tasks with different times, deliberately out of order
+	# This demonstrates sorting capabilities
 	now = datetime.now()
-	task1 = Task(
-		title="Feed Mochi",
-		description="Give 1 scoop of dry food",
-		scheduled_at=now + timedelta(hours=1)
-	)
-	task2 = Task(
-		title="Play with Mochi",
-		description="15 minutes of interactive play",
-		scheduled_at=now + timedelta(hours=3)
-	)
+	
+	# Task 3: Clean bowls at 3 PM (latest)
 	task3 = Task(
 		title="Clean Rex's bowls",
 		description="Wash and refill water and food bowls",
-		scheduled_at=now + timedelta(hours=2)
+		scheduled_at=now + timedelta(hours=3),
+		priority="high",
+		duration_minutes=10
+	)
+	
+	# Task 1: Feed Mochi at 1 PM (earliest) - Low priority
+	task1 = Task(
+		title="Feed Mochi",
+		description="Give 1 scoop of dry food",
+		scheduled_at=now + timedelta(hours=1),
+		priority="low",
+		duration_minutes=5
+	)
+	
+	# Task 2: Play with Mochi at 2 PM (middle) - High priority
+	task2 = Task(
+		title="Play with Mochi",
+		description="15 minutes of interactive play",
+		scheduled_at=now + timedelta(hours=2),
+		priority="high",
+		duration_minutes=15
 	)
 
-	# Add tasks to pets
-	pet1.add_task(task1)
-	pet1.add_task(task2)
-	pet2.add_task(task3)
-	print(f"Added 3 tasks with different times:\n")
+	# Add tasks out of order (3, 1, 2) to test sorting
+	pet1.add_task(task3)  # Added first but scheduled last
+	pet1.add_task(task1)  # Added second but scheduled first
+	pet2.add_task(task2)  # Added third, middle time
+	print(f"Added 3 tasks OUT OF ORDER to test sorting:\n")
 
 	# Add food to pets
 	food1 = PetFood(brand="HappyPaws", type="Dry", quantity=5)
