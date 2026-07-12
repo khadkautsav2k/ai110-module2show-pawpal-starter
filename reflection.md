@@ -6,7 +6,9 @@
 **a. Initial design**
 
 - Briefly describe your initial UML design.
+Firstly, I created four important attributes for Pawpal. 
 - What classes did you include, and what responsibilities did you assign to each?
+I assign adding a pet option to add a new pet on the system, every time timely care for the pets, pet food to serve everyday, todays task if there's any. 
 
 **b. Design changes**
 
